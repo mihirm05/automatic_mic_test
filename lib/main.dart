@@ -14,6 +14,9 @@ class _MicAndTextAppState extends State<MicAndTextApp>
   bool _hasPermission = false;
   bool _isListening = false;
   bool _isTextEntryActive = false;
+  bool _micVisible = false;
+  bool _micOn = false;
+
   int _currentRound = 0;
   final int maxRounds = 3;
   String _recognizedText = '';
@@ -30,13 +33,13 @@ class _MicAndTextAppState extends State<MicAndTextApp>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 10),
+      duration: const Duration(seconds: 18), // total animation per round
     );
 
     _animation = Tween<Alignment>(
       begin: Alignment(-1.0, 0.9),
       end: Alignment(1.0, 0.9),
-    ).animate(_controller);
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.linear));
 
     _requestMicPermission();
   }
@@ -47,60 +50,77 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       onError: (error) => print("ERROR: ${error.errorMsg}"),
     );
 
-    setState(() {
-      _hasPermission = available;
-    });
+    setState(() => _hasPermission = available);
 
-    if (available) {
-      _startNextRound();
-    }
+    if (available) _startNextRound();
   }
 
   Future<void> _startNextRound() async {
-  if (_currentRound >= maxRounds) {
+    if (_currentRound >= maxRounds) {
+      setState(() {
+        _recognizedText += '\n\n✅ Finished all 3 rounds.';
+        _isListening = false;
+        _isTextEntryActive = false;
+        _micVisible = false;
+      });
+      return;
+    }
+
     setState(() {
-      _recognizedText += '\n\n✅ Finished all 3 rounds.';
-      _isListening = false;
+      _recognizedText += '\n\n🎙 Round ${_currentRound + 1} - Listening...';
+      _micVisible = true;
+      _micOn = true;
       _isTextEntryActive = false;
+      _isListening = true;
+      _currentSpeech = '';
     });
-    return;
+
+    _controller.reset();
+    _controller.forward();
+
+    // Phase 1 - Record 0–6s
+    _startRecording();
+    await Future.delayed(Duration(seconds: 6));
+    await _stopRecording();
+
+    // Phase 2 - Pause 6–12s (mic OFF)
+    setState(() => _micOn = false);
+    await Future.delayed(Duration(seconds: 6));
+
+    // Phase 3 - Resume recording 12–18s
+    setState(() => _micOn = true);
+    _startRecording();
+    await Future.delayed(Duration(seconds: 6));
+    await _stopRecording();
+
+    // Switch to text input
+    setState(() {
+      _isListening = false;
+      _micVisible = false;
+      _isTextEntryActive = true;
+    });
   }
 
-  setState(() {
-    _isListening = true;
-    _isTextEntryActive = false;
-    _currentSpeech = '';
-    _recognizedText += '\n\n🎙 Round ${_currentRound + 1} - Listening...';
-  });
+  void _startRecording() {
+    _speech.listen(
+      localeId: 'de_DE',
+      listenFor: Duration(seconds: 6),
+      onResult: (result) {
+        setState(() {
+          _currentSpeech = result.recognizedWords;
+          _recognizedText = _recognizedText.replaceAll(
+            RegExp(r'\n🗣 Recognized:.*'),
+            '',
+          );
+          _recognizedText += '\n🗣 Recognized: $_currentSpeech';
+        });
+      },
+    );
+  }
 
-  _controller.reset();
-  _controller.forward();
-
-  _speech.listen(
-    localeId: 'de_DE',
-    listenFor: Duration(seconds: 10),
-    onResult: (result) {
-      setState(() {
-        _currentSpeech = result.recognizedWords;
-
-        // Update live recognized text, replacing previous partial update
-        _recognizedText = _recognizedText.replaceAll(RegExp(r'\n🗣 Recognized:.*'), '');
-        _recognizedText += '\n🗣 Recognized: $_currentSpeech';
-      });
-    },
-  );
-
-  await Future.delayed(Duration(seconds: 10));
-  await _speech.stop();
-
-  setState(() {
-    _isListening = false;
-    _isTextEntryActive = true;
-  });
-
-  _currentRound++;
-}
-
+  Future<void> _stopRecording() async {
+    await _speech.stop();
+  }
 
   void _submitTextInput() {
     setState(() {
@@ -109,6 +129,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       _isTextEntryActive = false;
     });
 
+    _currentRound++;
     Future.delayed(Duration(seconds: 2), _startNextRound);
   }
 
@@ -144,13 +165,27 @@ class _MicAndTextAppState extends State<MicAndTextApp>
                     ),
                   ),
                 ),
-                if (_isListening)
+                if (_micVisible)
                   AnimatedBuilder(
                     animation: _animation,
                     builder: (context, child) {
                       return Align(
                         alignment: _animation.value,
-                        child: Icon(Icons.mic, size: 40, color: Colors.red),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.mic,
+                              size: 40,
+                              color: _micOn ? Colors.red : Colors.grey,
+                            ),
+                            Text(
+                              _micOn ? "ON" : "OFF",
+                              style: TextStyle(
+                                  color: _micOn ? Colors.red : Colors.grey),
+                            ),
+                          ],
+                        ),
                       );
                     },
                   ),
