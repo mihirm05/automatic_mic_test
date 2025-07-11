@@ -92,13 +92,24 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     );
     await Future.delayed(const Duration(seconds: 6));
     await _speech.stop();
+  setState(() => _micOn = false);
+  _appendStatus('🔇 Paused — preparing audio...');
 
-    // 2️⃣ 6s pause + play audio
-    setState(() => _micOn = false);
-    _appendStatus('🔇 Paused — playing audio...');
-    await _audioPlayer.play(AssetSource('audio/2R6KVMP1_de.mp3'));
+  // Small delay to release mic before audio playback
+  await Future.delayed(Duration(milliseconds: 300));
+
+  
+  try {
+    print('try playing audio');
+    await _audioPlayer.play(UrlSource('assets/audio/2R6KVMP1.mp3'));
+  } catch (e) {
+
+    _appendStatus('❌ Audio error: $e');
+}
+    _appendStatus('🔊 Playing audio...');
+
     await Future.delayed(const Duration(seconds: 6));
-    //await _audioPlayer.stop();
+    await _audioPlayer.stop();
 
     // 3️⃣ Final 6s recording
     setState(() => _micOn = true);
@@ -186,14 +197,15 @@ class _MicAndTextAppState extends State<MicAndTextApp>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.mic,
+                            _micOn ? Icons.mic : Icons.volume_up,
                             size: 40,
-                            color: _micOn ? Colors.red : Colors.grey,
+                            color: _micOn ? Colors.red : Colors.blue,
                           ),
                           Text(
-                            _micOn ? "ON" : "OFF",
+                            _micOn ? "Mic ON" : "Playing",
                             style: TextStyle(
-                                color: _micOn ? Colors.red : Colors.grey),
+                              color: _micOn ? Colors.red : Colors.blue,
+                            ),
                           ),
                         ],
                       ),
