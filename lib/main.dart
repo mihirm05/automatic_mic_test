@@ -2,7 +2,47 @@ import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:audioplayers/audioplayers.dart';
 
-void main() => runApp(MaterialApp(home: MicAndTextApp()));
+void main() => runApp(MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: LaunchPage(),
+    ));
+
+class LaunchPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.deepPurple.shade50,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.hearing, size: 100, color: Colors.deepPurple),
+            const SizedBox(height: 20),
+            Text(
+              "Speech & Audio Quiz",
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton.icon(
+              icon: Icon(Icons.play_arrow),
+              label: Text("Start"),
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                textStyle: TextStyle(fontSize: 18),
+              ),
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => MicAndTextApp()),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class MicAndTextApp extends StatefulWidget {
   @override
@@ -92,24 +132,20 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     );
     await Future.delayed(const Duration(seconds: 6));
     await _speech.stop();
-  setState(() => _micOn = false);
-  _appendStatus('🔇 Paused — preparing audio...');
+    setState(() => _micOn = false);
+    _appendStatus('🔇 Paused — preparing audio...');
 
-  // Small delay to release mic before audio playback
-  await Future.delayed(Duration(milliseconds: 300));
+    // Small delay to release mic before audio playback
+    await Future.delayed(Duration(milliseconds: 900));
+    print('micOn flag: $_micOn');
 
-  
-  try {
-    print('try playing audio');
-    await _audioPlayer.play(UrlSource('assets/audio/2R6KVMP1.mp3'));
-  } catch (e) {
-
-    _appendStatus('❌ Audio error: $e');
-}
-    _appendStatus('🔊 Playing audio...');
-
+    await _audioPlayer.play(AssetSource('audio/2R6KVMP1.mp3'));
     await Future.delayed(const Duration(seconds: 6));
     await _audioPlayer.stop();
+
+    // potential reason as to why the audioPlayer crashed: "assets/assets/audio" problem: https://developer.chrome.com/blog/autoplay/
+    // chrome and other web browsers require user interaction to play audio
+    // working solution: added a button to start the quiz, which acts as a user interaction
 
     // 3️⃣ Final 6s recording
     setState(() => _micOn = true);
@@ -127,14 +163,13 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     await _speech.stop();
 
     // Switch to typing
-    setState(() { 
+    setState(() {
       _micVisible = false;
       _isTextEntryActive = true;
     });
   }
 
   void _appendLiveSpeech() {
-    // Replace previous partial result
     _recognizedText = _recognizedText.replaceAll(
       RegExp(r'\n🗣 Recognized:.*'),
       '',
