@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:audioplayers/audioplayers.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart';
 
 void main() => runApp(MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -66,8 +68,23 @@ class _MicAndTextAppState extends State<MicAndTextApp>
   String _inputText = '';
   String _currentSpeech = '';
 
+  int _wordCount = 0;
+  int _alphabetCount = 0;
+
   late AnimationController _controller;
   late Animation<Alignment> _animation;
+
+  final List<String> _audioFiles = [
+    '2R6KVMP1.mp3',
+    '2T9JK5W8.mp3',
+    '6S8QLZC1.mp3',
+  ];
+
+  final List<String> _jsonFiles = [
+    '2R6KVMP1.json',
+    '2T9JK5W8.json',
+    '6S8QLZC1.json',
+  ];
 
   @override
   void initState() {
@@ -77,7 +94,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 18),
+      duration: const Duration(seconds: 60),
     );
 
     _animation = Tween<Alignment>(
@@ -86,6 +103,36 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.linear));
 
     _requestMicPermission();
+  }
+
+  Future<void> _loadData(String filename) async {
+    final jsonString = await rootBundle.loadString('assets/audio/$filename');
+    final Map<String, dynamic> jsonMap = json.decode(jsonString);
+
+    final String rawText = jsonMap['text_de'] ?? '';
+
+    final String cleaned = rawText
+        .replaceAll(RegExp(r'[„“.,…]'), '')
+        .replaceAll(RegExp(r'\.\.'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    final List<String> words = cleaned.split(' ');
+    final List<String> filteredWords =
+        words.where((w) => w.trim().isNotEmpty).toList();
+
+    final int alphabetCount =
+        cleaned.replaceAll(RegExp(r'[^A-Za-zÄÖÜäöüß]'), '').length;
+
+    print('Raw text: $rawText');
+    print('Cleaned: $cleaned');
+    print('Word count: ${filteredWords.length}');
+    print('Alphabet count: $alphabetCount');
+
+    setState(() {
+      _wordCount = filteredWords.length;
+      _alphabetCount = _wordCount;
+    });
   }
 
   Future<void> _requestMicPermission() async {
@@ -108,6 +155,18 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       return;
     }
 
+    // Load data for this round
+    await _loadData(_jsonFiles[_currentRound]);
+
+    final int N = _alphabetCount;
+    final int firstWindow = 3*_wordCount;
+    final int secondWindow = 3*_wordCount;
+    final int audioWindow = 2*_wordCount;
+
+    print('firstWindow: $firstWindow');
+    print('secondWindow: $secondWindow');
+    print('audioWindow: $audioWindow');
+
     setState(() {
       _recognizedText += '\n\n🎙 Round ${_currentRound + 1}';
       _micVisible = true;
@@ -116,13 +175,15 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       _currentSpeech = '';
     });
 
+    _controller.duration =
+        Duration(seconds: firstWindow + audioWindow + secondWindow);
     _controller.reset();
     _controller.forward();
 
-    // 1️⃣ First 6s recording
+    // 🎤 First speaking window
     _speech.listen(
       localeId: 'de_DE',
-      listenFor: const Duration(seconds: 6),
+      listenFor: Duration(seconds: firstWindow),
       onResult: (res) {
         setState(() {
           _currentSpeech = res.recognizedWords;
@@ -130,39 +191,42 @@ class _MicAndTextAppState extends State<MicAndTextApp>
         });
       },
     );
-    await Future.delayed(const Duration(seconds: 6));
+    await Future.delayed(Duration(seconds: firstWindow));
     await _speech.stop();
     setState(() => _micOn = false);
     _appendStatus('🔇 Paused — preparing audio...');
 
-    // Small delay to release mic before audio playback
     await Future.delayed(Duration(milliseconds: 900));
-    print('micOn flag: $_micOn');
 
-    await _audioPlayer.play(AssetSource('audio/2R6KVMP1.mp3'));
-    await Future.delayed(const Duration(seconds: 6));
+    // 🔊 Audio playback
+    String audioFile = _audioFiles[_currentRound];
+    await _audioPlayer.play(AssetSource('audio/$audioFile'));
+    await Future.delayed(Duration(seconds: audioWindow));
     await _audioPlayer.stop();
 
-    // potential reason as to why the audioPlayer crashed: "assets/assets/audio" problem: https://developer.chrome.com/blog/autoplay/
-    // chrome and other web browsers require user interaction to play audio
-    // working solution: added a button to start the quiz, which acts as a user interaction
-
-    // 3️⃣ Final 6s recording
-    setState(() => _micOn = true);
-    _speech.listen(
-      localeId: 'de_DE',
-      listenFor: const Duration(seconds: 6),
-      onResult: (res) {
-        setState(() {
-          _currentSpeech = res.recognizedWords;
-          _appendLiveSpeech();
-        });
-      },
+    // 🎤 Final speaking window
+    await Future.delayed(Duration(milliseconds: 500));
+    bool reinitialized = await _speech.initialize(
+      onStatus: (status) => print("STATUS: $status"),
+      onError: (error) => print("ERROR: ${error.errorMsg}"),
     );
-    await Future.delayed(const Duration(seconds: 6));
-    await _speech.stop();
 
-    // Switch to typing
+    if (reinitialized) {
+      setState(() => _micOn = true);
+      _speech.listen(
+        localeId: 'de_DE',
+        listenFor: Duration(seconds: secondWindow),
+        onResult: (res) {
+          setState(() {
+            _currentSpeech = res.recognizedWords;
+            _appendLiveSpeech();
+          });
+        },
+      );
+      await Future.delayed(Duration(seconds: secondWindow));
+      await _speech.stop();
+    }
+
     setState(() {
       _micVisible = false;
       _isTextEntryActive = true;
