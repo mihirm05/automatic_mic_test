@@ -1,0 +1,17 @@
+{
+  "uuid": "2T9JK5W8",
+  "speaker": "Lara",
+  "text_de": "T..Tisch.. Tasse, Tennis, Ton, Tür..Tisch..N..Tisch",
+  "scene": "ein Tisch",
+  "story": "Articulation",
+  "created_at": "2025-06-24T12:20:00Z",
+  "filenames": {
+    "image": "2T9JK5W8.png",
+    "audio": {
+      "de": "2T9JK5W8_de.mp3"
+    }
+  },
+  "image_prompt": "Show a cartoon-style wooden table next to the word \"Tisch\" with the letter \"T\" in red. Style: DALL·E 3, 1024×1024, transparent_background=true. Ligne claire style: clean strong lines (some varied thickness), flat vibrant colors, no hatching, soft gently lit shadows, overall subdued contrast.",
+  "item_de": "Tisch",
+  "display_de": "T"
+}

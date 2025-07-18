@@ -1,0 +1,17 @@
+{
+  "uuid": "2R6KVMP1",
+  "speaker": "Lara",
+  "text_de": "„R..Radio..rot, Regen, Ring, Rose..Radio..rr..Radio“",
+  "scene": "ein Radio",
+  "story": "Articulation",
+  "created_at": "2025-06-24T12:36:00Z",
+  "filenames": {
+    "image": "2R6KVMP1.png",
+    "audio": {
+      "de": "2R6KVMP1_de.mp3"
+    }
+  },
+  "image_prompt": "Show a cartoon-style vintage radio next to the word \"Radio\" with the letter \"R\" in red. Style: DALL·E 3, 1024×1024, transparent_background=true. Ligne claire style: clean strong lines (some varied thickness), flat vibrant colors, no hatching, soft gently lit shadows, overall subdued contrast.",
+  "item_de": "Radio",
+  "display_de": "R"
+}
