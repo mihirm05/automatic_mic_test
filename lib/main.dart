@@ -3,12 +3,34 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:string_similarity/string_similarity.dart';
+  
 
 void main() => runApp(MaterialApp(home: MicAndTextApp()));
 
 class MicAndTextApp extends StatefulWidget {
   @override
   State<MicAndTextApp> createState() => _MicAndTextAppState();
+}
+
+/// Compares character-level similarity between input and target.
+/// Returns a value between 0.0 (no match) and 1.0 (perfect match).
+/// Optional threshold for match classification.
+CharacterSimilarityResult compareCharSimilarity(String input, String target, {double threshold = 0.85}) {
+  final cleanInput = input.toLowerCase().replaceAll(RegExp(r'[^\wäöüß]'), '').trim();
+  final cleanTarget = target.toLowerCase().replaceAll(RegExp(r'[^\wäöüß]'), '').trim();
+
+  final similarity = StringSimilarity.compareTwoStrings(cleanInput, cleanTarget);
+  final isSimilar = similarity >= threshold;
+
+  return CharacterSimilarityResult(similarity: similarity, isSimilar: isSimilar);
+}
+
+class CharacterSimilarityResult {
+  final double similarity;
+  final bool isSimilar;
+
+  CharacterSimilarityResult({required this.similarity, required this.isSimilar});
 }
 
 class _MicAndTextAppState extends State<MicAndTextApp>
@@ -170,7 +192,15 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     print('firstWindowSpeech: $firstWindowSpeech');
     print('_itemDe: $_itemDe');
 
+    var threshold = 0.5;
+    var result = compareCharSimilarity(firstWindowSpeech, _itemDe, threshold: threshold);
+
+    print('Similarity: ${result.similarity.toStringAsFixed(2)}');  // e.g., 0.67
+    print('Is similar: ${result.isSimilar}');
+
     if (firstWindowSpeech.toLowerCase() == _itemDe.toLowerCase()) {
+    //if (result > threshold){
+
       _appendStatus('✅ Match! Skipping second mic...');
       _advanceRound();
     } else {
