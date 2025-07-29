@@ -4,47 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
 
-void main() => runApp(MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: LaunchPage(),
-    ));
-
-class LaunchPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.deepPurple.shade50,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.hearing, size: 100, color: Colors.deepPurple),
-            const SizedBox(height: 20),
-            Text(
-              "Speech & Audio Quiz",
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 40),
-            ElevatedButton.icon(
-              icon: Icon(Icons.play_arrow),
-              label: Text("Start"),
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                textStyle: TextStyle(fontSize: 18),
-              ),
-              onPressed: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => MicAndTextApp()),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+void main() => runApp(MaterialApp(home: MicAndTextApp()));
 
 class MicAndTextApp extends StatefulWidget {
   @override
@@ -57,9 +17,10 @@ class _MicAndTextAppState extends State<MicAndTextApp>
   late AudioPlayer _audioPlayer;
 
   bool _hasPermission = false;
-  bool _isTextEntryActive = false;
+  bool _quizStarted = false;
   bool _micVisible = false;
   bool _micOn = false;
+  bool _isTextEntryActive = false;
 
   int _currentRound = 0;
   final int maxRounds = 3;
@@ -67,6 +28,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
   String _recognizedText = '';
   String _inputText = '';
   String _currentSpeech = '';
+  String _itemDe = '';
 
   int _wordCount = 0;
   int _alphabetCount = 0;
@@ -75,9 +37,9 @@ class _MicAndTextAppState extends State<MicAndTextApp>
   late Animation<Alignment> _animation;
 
   final List<String> _audioFiles = [
-    '2R6KVMP1.mp3',
-    '2T9JK5W8.mp3',
-    '6S8QLZC1.mp3',
+    '2R6KVMP1.mp3', //radio
+    '2T9JK5W8.mp3', //tisch
+    '6S8QLZC1.mp3', //salz
   ];
 
   final List<String> _jsonFiles = [
@@ -94,7 +56,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 60),
+      duration: const Duration(seconds: 18),
     );
 
     _animation = Tween<Alignment>(
@@ -108,6 +70,9 @@ class _MicAndTextAppState extends State<MicAndTextApp>
   Future<void> _loadData(String filename) async {
     final jsonString = await rootBundle.loadString('assets/audio/$filename');
     final Map<String, dynamic> jsonMap = json.decode(jsonString);
+
+    _itemDe = jsonMap['item_de'];
+    print('item_de: $_itemDe');
 
     final String rawText = jsonMap['text_de'] ?? '';
 
@@ -142,7 +107,6 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     );
 
     setState(() => _hasPermission = available);
-    if (available) _startNextRound();
   }
 
   Future<void> _startNextRound() async {
@@ -155,7 +119,6 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       return;
     }
 
-    // Load data for this round
     await _loadData(_jsonFiles[_currentRound]);
 
     final int N = _alphabetCount;
@@ -163,9 +126,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     final int secondWindow = 3*_wordCount;
     final int audioWindow = 2*_wordCount;
 
-    print('firstWindow: $firstWindow');
-    print('secondWindow: $secondWindow');
-    print('audioWindow: $audioWindow');
+    print('firstWindow: $firstWindow, secondWindow: $secondWindow, audioWindow: $audioWindow');
 
     setState(() {
       _recognizedText += '\n\n🎙 Round ${_currentRound + 1}';
@@ -175,62 +136,82 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       _currentSpeech = '';
     });
 
-    _controller.duration =
-        Duration(seconds: firstWindow + audioWindow + secondWindow);
+    _controller.duration = Duration(seconds: firstWindow + audioWindow + secondWindow);
     _controller.reset();
     _controller.forward();
 
-    // 🎤 First speaking window
+    String firstWindowSpeech = '';
     _speech.listen(
       localeId: 'de_DE',
       listenFor: Duration(seconds: firstWindow),
       onResult: (res) {
         setState(() {
-          _currentSpeech = res.recognizedWords;
+          firstWindowSpeech = res.recognizedWords.trim().toLowerCase();
+          _currentSpeech = firstWindowSpeech;
+          print('firstWindowSpeech: $firstWindowSpeech');
+          print('Recognized: $firstWindowSpeech');
           _appendLiveSpeech();
         });
       },
     );
+
     await Future.delayed(Duration(seconds: firstWindow));
     await _speech.stop();
+
     setState(() => _micOn = false);
     _appendStatus('🔇 Paused — preparing audio...');
+    await Future.delayed(Duration(milliseconds: 500));
 
-    await Future.delayed(Duration(milliseconds: 900));
-
-    // 🔊 Audio playback
     String audioFile = _audioFiles[_currentRound];
     await _audioPlayer.play(AssetSource('audio/$audioFile'));
     await Future.delayed(Duration(seconds: audioWindow));
     await _audioPlayer.stop();
 
-    // 🎤 Final speaking window
-    await Future.delayed(Duration(milliseconds: 500));
-    bool reinitialized = await _speech.initialize(
-      onStatus: (status) => print("STATUS: $status"),
-      onError: (error) => print("ERROR: ${error.errorMsg}"),
-    );
+    print('firstWindowSpeech: $firstWindowSpeech');
+    print('_itemDe: $_itemDe');
 
-    if (reinitialized) {
-      setState(() => _micOn = true);
-      _speech.listen(
-        localeId: 'de_DE',
-        listenFor: Duration(seconds: secondWindow),
-        onResult: (res) {
-          setState(() {
-            _currentSpeech = res.recognizedWords;
-            _appendLiveSpeech();
-          });
-        },
+    if (firstWindowSpeech.toLowerCase() == _itemDe.toLowerCase()) {
+      _appendStatus('✅ Match! Skipping second mic...');
+      _advanceRound();
+    } else {
+      _appendStatus('❌ No match — second mic...');
+      await Future.delayed(Duration(milliseconds: 500));
+
+      bool reinitialized = await _speech.initialize(
+        onStatus: (status) => print("STATUS: $status"),
+        onError: (error) => print("ERROR: ${error.errorMsg}"),
       );
-      await Future.delayed(Duration(seconds: secondWindow));
-      await _speech.stop();
-    }
 
+      if (reinitialized) {
+        setState(() => _micOn = true);
+        _speech.listen(
+          localeId: 'de_DE',
+          listenFor: Duration(seconds: secondWindow),
+          onResult: (res) {
+            setState(() {
+              _currentSpeech = res.recognizedWords;
+              _appendLiveSpeech();
+            });
+          },
+        );
+        await Future.delayed(Duration(seconds: secondWindow));
+        await _speech.stop();
+      }
+
+      setState(() {
+        _micVisible = false;
+        _isTextEntryActive = true;
+      });
+    }
+  }
+
+  void _advanceRound() {
     setState(() {
+      _currentRound++;
       _micVisible = false;
-      _isTextEntryActive = true;
+      _isTextEntryActive = false;
     });
+    Future.delayed(const Duration(seconds: 2), _startNextRound);
   }
 
   void _appendLiveSpeech() {
@@ -273,70 +254,85 @@ class _MicAndTextAppState extends State<MicAndTextApp>
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
             )
-          : Stack(children: [
-              Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Center(
-                  child: SingleChildScrollView(
+          : !_quizStarted
+              ? Center(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _quizStarted = true;
+                      });
+                      _startNextRound();
+                    },
                     child: Text(
-                      _recognizedText,
-                      style: TextStyle(fontSize: 18),
-                      textAlign: TextAlign.center,
+                      "Start Quiz",
+                      style: TextStyle(fontSize: 20),
                     ),
                   ),
-                ),
-              ),
-              if (_micVisible)
-                AnimatedBuilder(
-                  animation: _animation,
-                  builder: (context, child) {
-                    return Align(
-                      alignment: _animation.value,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _micOn ? Icons.mic : Icons.volume_up,
-                            size: 40,
-                            color: _micOn ? Colors.red : Colors.blue,
-                          ),
-                          Text(
-                            _micOn ? "Mic ON" : "Playing",
-                            style: TextStyle(
-                              color: _micOn ? Colors.red : Colors.blue,
-                            ),
-                          ),
-                        ],
+                )
+              : Stack(children: [
+                  Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Center(
+                      child: SingleChildScrollView(
+                        child: Text(
+                          _recognizedText,
+                          style: TextStyle(fontSize: 18),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                    );
-                  },
-                ),
-              if (_isTextEntryActive)
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            onChanged: (val) => _inputText = val,
-                            decoration: InputDecoration(
-                              hintText: "Type something...",
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        ElevatedButton(
-                          onPressed: _submitTextInput,
-                          child: Text("Submit"),
-                        ),
-                      ],
                     ),
                   ),
-                ),
-            ]),
+                  if (_micVisible)
+                    AnimatedBuilder(
+                      animation: _animation,
+                      builder: (context, child) {
+                        return Align(
+                          alignment: _animation.value,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _micOn ? Icons.mic : Icons.volume_up,
+                                size: 40,
+                                color: _micOn ? Colors.red : Colors.blue,
+                              ),
+                              Text(
+                                _micOn ? "Mic ON" : "Playing",
+                                style: TextStyle(
+                                  color: _micOn ? Colors.red : Colors.blue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  if (_isTextEntryActive)
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                onChanged: (val) => _inputText = val,
+                                decoration: InputDecoration(
+                                  hintText: "Type something...",
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            ElevatedButton(
+                              onPressed: _submitTextInput,
+                              child: Text("Submit"),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ]),
     );
   }
 }
