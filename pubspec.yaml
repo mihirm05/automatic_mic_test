@@ -36,6 +36,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   speech_to_text: ^7.1.0
   audioplayers: ^6.5.0
+  string_similarity: ^2.0.0
+
+
 
 dev_dependencies:
   flutter_test:
