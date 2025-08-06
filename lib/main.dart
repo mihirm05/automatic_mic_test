@@ -366,3 +366,27 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     );
   }
 }
+
+/*
+AI audio: tisch + patient audio: tisch (soft t)
+
+speech to text:
+ideal: tisch, tasse, tennis ... + tisch
+real: tisch, tasse, tennis ... + ich/dich/.... 
+
+wortA, wortB, wortC
+
+tisch, tasse, tennis
+ich, trasse->tasse, terasse 
+
+context window -> 1 2 second
+*/
+
+
+/*
+e - nuff -> enough
+pl - ow -> plough
+
+enough -> e - nuff 
+tisch -> t - ish 
+*/
