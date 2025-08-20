@@ -46,7 +46,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
   bool _micVisible = false;
   bool _micOn = false;
   bool _isTextEntryActive = false;
-  bool _showGroundTruth = false; // NEW
+  bool _showGroundTruth = false;
 
   int _currentRound = 0;
   final int maxRounds = 3;
@@ -98,8 +98,6 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     final Map<String, dynamic> jsonMap = json.decode(jsonString);
 
     _itemDe = jsonMap['item_de'];
-    print('item_de: $_itemDe');
-
     final String rawText = jsonMap['text_de'] ?? '';
 
     final String cleaned = rawText
@@ -115,14 +113,9 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     final int alphabetCount =
         cleaned.replaceAll(RegExp(r'[^A-Za-zÄÖÜäöüß]'), '').length;
 
-    print('Raw text: $rawText');
-    print('Cleaned: $cleaned');
-    print('Word count: ${filteredWords.length}');
-    print('Alphabet count: $alphabetCount');
-
     setState(() {
       _wordCount = filteredWords.length;
-      _alphabetCount = _wordCount;
+      _alphabetCount = alphabetCount;
     });
   }
 
@@ -148,13 +141,9 @@ class _MicAndTextAppState extends State<MicAndTextApp>
 
     await _loadData(_jsonFiles[_currentRound]);
 
-    final int N = _alphabetCount;
     final int firstWindow = 3 * _wordCount;
     final int secondWindow = 3 * _wordCount;
     final int audioWindow = 2 * _wordCount;
-
-    print(
-        'firstWindow: $firstWindow, secondWindow: $secondWindow, audioWindow: $audioWindow');
 
     setState(() {
       _recognizedText += '\n\n🎙 Round ${_currentRound + 1}';
@@ -170,6 +159,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     _controller.reset();
     _controller.forward();
 
+    // First mic window
     String firstWindowSpeech = '';
     _speech.listen(
       localeId: 'de_DE',
@@ -178,8 +168,6 @@ class _MicAndTextAppState extends State<MicAndTextApp>
         setState(() {
           firstWindowSpeech = res.recognizedWords.trim().toLowerCase();
           _currentSpeech = firstWindowSpeech;
-          print('firstWindowSpeech: $firstWindowSpeech');
-          print('Recognized: $firstWindowSpeech');
           _appendLiveSpeech();
         });
       },
@@ -192,26 +180,20 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     _appendStatus('🔇 Paused — preparing audio...');
     await Future.delayed(Duration(milliseconds: 500));
 
+    // Play hint audio
     String audioFile = _audioFiles[_currentRound];
     await _audioPlayer.play(AssetSource('audio/$audioFile'));
     await Future.delayed(Duration(seconds: audioWindow));
     await _audioPlayer.stop();
 
-    print('firstWindowSpeech: $firstWindowSpeech');
-    print('_itemDe: $_itemDe');
+    // Evaluate first attempt
+    var result = compareCharSimilarity(firstWindowSpeech, _itemDe, threshold: 0.5);
 
-    var threshold = 0.5;
-    var result = compareCharSimilarity(firstWindowSpeech, _itemDe,
-        threshold: threshold);
-
-    print('Similarity: ${result.similarity.toStringAsFixed(2)}');
-    print('Is similar: ${result.isSimilar}');
-
-    if (firstWindowSpeech.toLowerCase() == _itemDe.toLowerCase()) {
-      _appendStatus('✅ Match! Skipping second mic...');
+    if (result.isSimilar) {
+      _appendStatus('✅ First mic matched!');
       _advanceRound();
     } else {
-      _appendStatus('❌ No match — second mic...');
+      _appendStatus('❌ First mic failed — second mic...');
       await Future.delayed(Duration(milliseconds: 500));
 
       bool reinitialized = await _speech.initialize(
@@ -222,26 +204,38 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       if (reinitialized) {
         setState(() {
           _micOn = true;
-          _showGroundTruth = true; // SHOW ground truth now
+          _showGroundTruth = true; // show target word
         });
+
+        String secondWindowSpeech = '';
         _speech.listen(
           localeId: 'de_DE',
           listenFor: Duration(seconds: secondWindow),
           onResult: (res) {
             setState(() {
-              _currentSpeech = res.recognizedWords;
+              secondWindowSpeech = res.recognizedWords.trim().toLowerCase();
+              _currentSpeech = secondWindowSpeech;
               _appendLiveSpeech();
             });
           },
         );
         await Future.delayed(Duration(seconds: secondWindow));
         await _speech.stop();
+
+        // ✅ Evaluate second attempt
+        var result2 = compareCharSimilarity(secondWindowSpeech, _itemDe, threshold: 0.5);
+        if (result2.isSimilar) {
+          _appendStatus('✅ Second mic matched!');
+          _advanceRound();
+          return;
+        }
       }
 
+      // If second attempt also fails → fallback to typing
       setState(() {
         _micVisible = false;
         _isTextEntryActive = true;
-        _showGroundTruth = false; // hide after mic ends
+        _showGroundTruth = false;
       });
     }
   }
