@@ -4,7 +4,6 @@ import 'package:audioplayers/audioplayers.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:string_similarity/string_similarity.dart';
-  
 
 void main() => runApp(MaterialApp(home: MicAndTextApp()));
 
@@ -16,11 +15,15 @@ class MicAndTextApp extends StatefulWidget {
 /// Compares character-level similarity between input and target.
 /// Returns a value between 0.0 (no match) and 1.0 (perfect match).
 /// Optional threshold for match classification.
-CharacterSimilarityResult compareCharSimilarity(String input, String target, {double threshold = 0.85}) {
-  final cleanInput = input.toLowerCase().replaceAll(RegExp(r'[^\wäöüß]'), '').trim();
-  final cleanTarget = target.toLowerCase().replaceAll(RegExp(r'[^\wäöüß]'), '').trim();
+CharacterSimilarityResult compareCharSimilarity(String input, String target,
+    {double threshold = 0.85}) {
+  final cleanInput =
+      input.toLowerCase().replaceAll(RegExp(r'[^\wäöüß]'), '').trim();
+  final cleanTarget =
+      target.toLowerCase().replaceAll(RegExp(r'[^\wäöüß]'), '').trim();
 
-  final similarity = StringSimilarity.compareTwoStrings(cleanInput, cleanTarget);
+  final similarity =
+      StringSimilarity.compareTwoStrings(cleanInput, cleanTarget);
   final isSimilar = similarity >= threshold;
 
   return CharacterSimilarityResult(similarity: similarity, isSimilar: isSimilar);
@@ -43,6 +46,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
   bool _micVisible = false;
   bool _micOn = false;
   bool _isTextEntryActive = false;
+  bool _showGroundTruth = false; // NEW
 
   int _currentRound = 0;
   final int maxRounds = 3;
@@ -137,6 +141,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
         _recognizedText += '\n\n✅ Finished all $maxRounds rounds.';
         _micVisible = false;
         _isTextEntryActive = false;
+        _showGroundTruth = false;
       });
       return;
     }
@@ -144,11 +149,12 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     await _loadData(_jsonFiles[_currentRound]);
 
     final int N = _alphabetCount;
-    final int firstWindow = 3*_wordCount;
-    final int secondWindow = 3*_wordCount;
-    final int audioWindow = 2*_wordCount;
+    final int firstWindow = 3 * _wordCount;
+    final int secondWindow = 3 * _wordCount;
+    final int audioWindow = 2 * _wordCount;
 
-    print('firstWindow: $firstWindow, secondWindow: $secondWindow, audioWindow: $audioWindow');
+    print(
+        'firstWindow: $firstWindow, secondWindow: $secondWindow, audioWindow: $audioWindow');
 
     setState(() {
       _recognizedText += '\n\n🎙 Round ${_currentRound + 1}';
@@ -156,9 +162,11 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       _micOn = true;
       _isTextEntryActive = false;
       _currentSpeech = '';
+      _showGroundTruth = false;
     });
 
-    _controller.duration = Duration(seconds: firstWindow + audioWindow + secondWindow);
+    _controller.duration =
+        Duration(seconds: firstWindow + audioWindow + secondWindow);
     _controller.reset();
     _controller.forward();
 
@@ -193,14 +201,13 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     print('_itemDe: $_itemDe');
 
     var threshold = 0.5;
-    var result = compareCharSimilarity(firstWindowSpeech, _itemDe, threshold: threshold);
+    var result = compareCharSimilarity(firstWindowSpeech, _itemDe,
+        threshold: threshold);
 
-    print('Similarity: ${result.similarity.toStringAsFixed(2)}');  // e.g., 0.67
+    print('Similarity: ${result.similarity.toStringAsFixed(2)}');
     print('Is similar: ${result.isSimilar}');
 
     if (firstWindowSpeech.toLowerCase() == _itemDe.toLowerCase()) {
-    //if (result > threshold){
-
       _appendStatus('✅ Match! Skipping second mic...');
       _advanceRound();
     } else {
@@ -213,7 +220,10 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       );
 
       if (reinitialized) {
-        setState(() => _micOn = true);
+        setState(() {
+          _micOn = true;
+          _showGroundTruth = true; // SHOW ground truth now
+        });
         _speech.listen(
           localeId: 'de_DE',
           listenFor: Duration(seconds: secondWindow),
@@ -231,6 +241,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       setState(() {
         _micVisible = false;
         _isTextEntryActive = true;
+        _showGroundTruth = false; // hide after mic ends
       });
     }
   }
@@ -240,6 +251,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       _currentRound++;
       _micVisible = false;
       _isTextEntryActive = false;
+      _showGroundTruth = false;
     });
     Future.delayed(const Duration(seconds: 2), _startNextRound);
   }
@@ -304,10 +316,26 @@ class _MicAndTextAppState extends State<MicAndTextApp>
                     padding: const EdgeInsets.all(24.0),
                     child: Center(
                       child: SingleChildScrollView(
-                        child: Text(
-                          _recognizedText,
-                          style: TextStyle(fontSize: 18),
-                          textAlign: TextAlign.center,
+                        child: Column(
+                          children: [
+                            Text(
+                              _recognizedText,
+                              style: TextStyle(fontSize: 18),
+                              textAlign: TextAlign.center,
+                            ),
+                            if (_showGroundTruth) ...[
+                              SizedBox(height: 20),
+                              Text(
+                                "👉 Say this: $_itemDe",
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ),
@@ -366,27 +394,3 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     );
   }
 }
-
-/*
-AI audio: tisch + patient audio: tisch (soft t)
-
-speech to text:
-ideal: tisch, tasse, tennis ... + tisch
-real: tisch, tasse, tennis ... + ich/dich/.... 
-
-wortA, wortB, wortC
-
-tisch, tasse, tennis
-ich, trasse->tasse, terasse 
-
-context window -> 1 2 second
-*/
-
-
-/*
-e - nuff -> enough
-pl - ow -> plough
-
-enough -> e - nuff 
-tisch -> t - ish 
-*/
