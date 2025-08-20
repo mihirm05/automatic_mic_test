@@ -188,6 +188,8 @@ class _MicAndTextAppState extends State<MicAndTextApp>
 
     // Evaluate first attempt
     var result = compareCharSimilarity(firstWindowSpeech, _itemDe, threshold: 0.5);
+    print('result.similarity: ${result.similarity}, isSimilar: ${result.isSimilar}');
+
 
     if (result.isSimilar) {
       _appendStatus('✅ First mic matched!');
@@ -224,6 +226,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
 
         // ✅ Evaluate second attempt
         var result2 = compareCharSimilarity(secondWindowSpeech, _itemDe, threshold: 0.5);
+        print('result2.similarity: ${result2.similarity}, isSimilar: ${result2.isSimilar}');
         if (result2.isSimilar) {
           _appendStatus('✅ Second mic matched!');
           _advanceRound();
