@@ -13,8 +13,6 @@ class MicAndTextApp extends StatefulWidget {
 }
 
 /// Compares character-level similarity between input and target.
-/// Returns a value between 0.0 (no match) and 1.0 (perfect match).
-/// Optional threshold for match classification.
 CharacterSimilarityResult compareCharSimilarity(String input, String target,
     {double threshold = 0.85}) {
   final cleanInput =
@@ -188,15 +186,12 @@ class _MicAndTextAppState extends State<MicAndTextApp>
 
     // Evaluate first attempt
     var result = compareCharSimilarity(firstWindowSpeech, _itemDe, threshold: 0.5);
-    print('result.similarity: ${result.similarity}, isSimilar: ${result.isSimilar}');
-
-
     if (result.isSimilar) {
       _appendStatus('✅ First mic matched!');
       _advanceRound();
     } else {
       _appendStatus('❌ First mic failed — second mic...');
-      await Future.delayed(Duration(milliseconds: 500));
+      await Future.delayed(Duration(milliseconds: 300));
 
       bool reinitialized = await _speech.initialize(
         onStatus: (status) => print("STATUS: $status"),
@@ -206,7 +201,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       if (reinitialized) {
         setState(() {
           _micOn = true;
-          _showGroundTruth = true; // show target word
+          _showGroundTruth = true; // ✅ show target word immediately
         });
 
         String secondWindowSpeech = '';
@@ -226,7 +221,6 @@ class _MicAndTextAppState extends State<MicAndTextApp>
 
         // ✅ Evaluate second attempt
         var result2 = compareCharSimilarity(secondWindowSpeech, _itemDe, threshold: 0.5);
-        print('result2.similarity: ${result2.similarity}, isSimilar: ${result2.isSimilar}');
         if (result2.isSimilar) {
           _appendStatus('✅ Second mic matched!');
           _advanceRound();
@@ -322,14 +316,22 @@ class _MicAndTextAppState extends State<MicAndTextApp>
                             ),
                             if (_showGroundTruth) ...[
                               SizedBox(height: 20),
-                              Text(
-                                "👉 Say this: $_itemDe",
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green,
-                                ),
-                                textAlign: TextAlign.center,
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.record_voice_over,
+                                      color: Colors.green, size: 28),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    _itemDe,
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
                               ),
                             ],
                           ],
