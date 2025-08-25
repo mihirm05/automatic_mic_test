@@ -178,6 +178,11 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     _appendStatus('🔇 Paused — preparing audio...');
     await Future.delayed(Duration(milliseconds: 500));
 
+    // ✅ Show target word BEFORE audio playback
+    setState(() {
+      _showGroundTruth = true;
+    });
+
     // Play hint audio
     String audioFile = _audioFiles[_currentRound];
     await _audioPlayer.play(AssetSource('audio/$audioFile'));
@@ -201,7 +206,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       if (reinitialized) {
         setState(() {
           _micOn = true;
-          _showGroundTruth = true; // ✅ show target word immediately
+          // keep _showGroundTruth = true
         });
 
         String secondWindowSpeech = '';
