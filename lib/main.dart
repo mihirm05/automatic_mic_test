@@ -1,7 +1,8 @@
+import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:audioplayers/audioplayers.dart';
-import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:string_similarity/string_similarity.dart';
 
@@ -57,6 +58,11 @@ class _MicAndTextAppState extends State<MicAndTextApp>
   int _wordCount = 0;
   int _alphabetCount = 0;
 
+  // Images
+  String? _targetImage;
+  String? _distractorImage;
+  bool _isTargetLeft = true; // shuffle target/distractor positions
+
   late AnimationController _controller;
   late Animation<Alignment> _animation;
 
@@ -70,6 +76,12 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     '2R6KVMP1.json',
     '2T9JK5W8.json',
     '6S8QLZC1.json',
+  ];
+
+  final List<String> _imageFiles = [
+    '2R6KVMP1.png',
+    '2T9JK5W8.png',
+    '6S8QLZC1.png',
   ];
 
   @override
@@ -111,9 +123,16 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     final int alphabetCount =
         cleaned.replaceAll(RegExp(r'[^A-Za-zÄÖÜäöüß]'), '').length;
 
+    final targetImg = _imageFiles[_currentRound];
+    final distractors = List<String>.from(_imageFiles)..remove(targetImg);
+    final distractorImg = distractors[Random().nextInt(distractors.length)];
+
     setState(() {
       _wordCount = filteredWords.length;
       _alphabetCount = alphabetCount;
+      _targetImage = targetImg;
+      _distractorImage = distractorImg;
+      _isTargetLeft = Random().nextBool();
     });
   }
 
@@ -122,7 +141,6 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       onStatus: (status) => print("STATUS: $status"),
       onError: (error) => print("ERROR: ${error.errorMsg}"),
     );
-
     setState(() => _hasPermission = available);
   }
 
@@ -133,6 +151,8 @@ class _MicAndTextAppState extends State<MicAndTextApp>
         _micVisible = false;
         _isTextEntryActive = false;
         _showGroundTruth = false;
+        _targetImage = null;
+        _distractorImage = null;
       });
       return;
     }
@@ -157,7 +177,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     _controller.reset();
     _controller.forward();
 
-    // First mic window
+    // --- First mic window ---
     String firstWindowSpeech = '';
     _speech.listen(
       localeId: 'de_DE',
@@ -178,18 +198,17 @@ class _MicAndTextAppState extends State<MicAndTextApp>
     _appendStatus('🔇 Paused — preparing audio...');
     await Future.delayed(Duration(milliseconds: 500));
 
-    // ✅ Show target word BEFORE audio playback
     setState(() {
-      _showGroundTruth = true;
+      _showGroundTruth = true; // show target word
     });
 
-    // Play hint audio
+    // --- Play audio hint ---
     String audioFile = _audioFiles[_currentRound];
     await _audioPlayer.play(AssetSource('audio/$audioFile'));
     await Future.delayed(Duration(seconds: audioWindow));
     await _audioPlayer.stop();
 
-    // Evaluate first attempt
+    // --- Evaluate first attempt ---
     var result = compareCharSimilarity(firstWindowSpeech, _itemDe, threshold: 0.5);
     if (result.isSimilar) {
       _appendStatus('✅ First mic matched!');
@@ -206,7 +225,6 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       if (reinitialized) {
         setState(() {
           _micOn = true;
-          // keep _showGroundTruth = true
         });
 
         String secondWindowSpeech = '';
@@ -224,7 +242,6 @@ class _MicAndTextAppState extends State<MicAndTextApp>
         await Future.delayed(Duration(seconds: secondWindow));
         await _speech.stop();
 
-        // ✅ Evaluate second attempt
         var result2 = compareCharSimilarity(secondWindowSpeech, _itemDe, threshold: 0.5);
         if (result2.isSimilar) {
           _appendStatus('✅ Second mic matched!');
@@ -233,7 +250,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
         }
       }
 
-      // If second attempt also fails → fallback to typing
+      // fallback to text input
       setState(() {
         _micVisible = false;
         _isTextEntryActive = true;
@@ -248,6 +265,8 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       _micVisible = false;
       _isTextEntryActive = false;
       _showGroundTruth = false;
+      _targetImage = null;
+      _distractorImage = null;
     });
     Future.delayed(const Duration(seconds: 2), _startNextRound);
   }
@@ -339,6 +358,69 @@ class _MicAndTextAppState extends State<MicAndTextApp>
                                 ],
                               ),
                             ],
+                            if (_targetImage != null && _distractorImage != null) ...[
+                              SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: _isTargetLeft
+                                    ? [
+                                        Column(
+                                          children: [
+                                            //Text("Target"),
+                                            Image.asset(
+                                              'assets/images/${_targetImage!}',
+                                              width: 120,
+                                              height: 120,
+                                            ),
+                                          ],
+                                        ),
+                                        Column(
+                                          children: [
+                                            //Text("Distractor"),
+                                            ColorFiltered(
+                                              colorFilter: ColorFilter.mode(
+                                                Colors.black.withOpacity(0.3),
+                                                BlendMode.darken,
+                                              ),
+                                              child: Image.asset(
+                                                'assets/images/${_distractorImage!}',
+                                                width: 120,
+                                                height: 120,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ]
+                                    : [
+                                        Column(
+                                          children: [
+                                            Text("Distractor"),
+                                            ColorFiltered(
+                                              colorFilter: ColorFilter.mode(
+                                                Colors.black.withOpacity(0.3),
+                                                BlendMode.darken,
+                                              ),
+                                              child: Image.asset(
+                                                'assets/images/${_distractorImage!}',
+                                                width: 120,
+                                                height: 120,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Column(
+                                          children: [
+                                            Text("Target"),
+                                            Image.asset(
+                                              'assets/images/${_targetImage!}',
+                                              width: 120,
+                                              height: 120,
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                              ),
+                            ]
                           ],
                         ),
                       ),
