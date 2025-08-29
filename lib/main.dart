@@ -394,7 +394,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
                                     : [
                                         Column(
                                           children: [
-                                            Text("Distractor"),
+                                            //Text("Distractor"),
                                             ColorFiltered(
                                               colorFilter: ColorFilter.mode(
                                                 Colors.black.withOpacity(0.3),
@@ -410,7 +410,7 @@ class _MicAndTextAppState extends State<MicAndTextApp>
                                         ),
                                         Column(
                                           children: [
-                                            Text("Target"),
+                                            //Text("Target"),
                                             Image.asset(
                                               'assets/images/${_targetImage!}',
                                               width: 120,
