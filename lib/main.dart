@@ -171,7 +171,6 @@ class _MicAndTextAppState extends State<MicAndTextApp>
       _currentSpeech = '';
       _showGroundTruth = false;
     });
-
     _controller.duration =
         Duration(seconds: firstWindow + audioWindow + secondWindow);
     _controller.reset();
